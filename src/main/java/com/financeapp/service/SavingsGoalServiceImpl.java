@@ -59,6 +59,23 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public SavingsGoalResponseDto getGoal(Long id, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+
+        SavingsGoal goal = savingsGoalRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Savings goal not found with id: " + id));
+
+        if (!goal.getUser().getId().equals(user.getId())) {
+            throw new ForbiddenException("Not authorized to access this savings goal");
+        }
+
+        BigDecimal currentProgress = transactionRepository.calculateSavingsSince(user, goal.getStartDate());
+        return savingsGoalMapper.toResponseDto(goal, currentProgress);
+    }
+
+    @Override
     @Transactional
     public SavingsGoalResponseDto updateGoal(Long id, SavingsGoalRequestDto requestDto, String userEmail) {
         User user = userRepository.findByEmail(userEmail)

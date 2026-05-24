@@ -45,16 +45,11 @@ public class SavingsGoalMapper {
                 percentage = new BigDecimal(100);
             }
         }
-        
+
         BigDecimal remaining = entity.getTargetAmount().subtract(currentProgressVal);
         if (remaining.compareTo(BigDecimal.ZERO) < 0) {
             remaining = BigDecimal.ZERO;
         }
-
-        SavingsGoalResponseDto.ProgressDetailsDto progressDetails = SavingsGoalResponseDto.ProgressDetailsDto.builder()
-                .percentageCompletion(percentage)
-                .remainingAmount(remaining)
-                .build();
 
         return SavingsGoalResponseDto.builder()
                 .id(entity.getId())
@@ -62,11 +57,9 @@ public class SavingsGoalMapper {
                 .targetAmount(entity.getTargetAmount())
                 .targetDate(entity.getTargetDate())
                 .startDate(entity.getStartDate())
-                .currentProgress(progressDetails)
-                .currentAmount(currentProgressVal)
-                .deadline(entity.getTargetDate())
-                .progressPercentage(percentage.doubleValue())
-                .createdAt(entity.getCreatedAt())
+                .currentProgress(currentProgressVal)
+                .progressPercentage(percentage)
+                .remainingAmount(remaining)
                 .build();
     }
 }
