@@ -10,13 +10,13 @@ A RESTful API built with Spring Boot 3 for managing personal financial transacti
 src/main/java/com/financeapp/
 ├── config/
 │   ├── DatabaseSeeder.java       -- Seeds default categories on startup
-│   └── SecurityConfig.java       -- Spring Security, CORS, JWT filter chain
+│   └── SecurityConfig.java       -- Spring Security, CORS, session filter chain
 ├── controller/
 │   ├── AuthController.java       -- POST /api/auth/register, /login, /logout, GET /me
 │   ├── TransactionController.java-- CRUD for /api/transactions
 │   ├── CategoryController.java   -- CRUD for /api/categories
 │   ├── SavingsGoalController.java-- CRUD for /api/goals
-│   └── ReportController.java     -- GET /api/reports/monthly, /yearly
+│   └── ReportController.java     -- GET /api/reports/summary, /monthly, /yearly
 ├── dto/                          -- Request and response transfer objects
 ├── entity/                       -- JPA entities (User, Transaction, Category, SavingsGoal)
 ├── enums/                        -- TransactionType (INCOME, EXPENSE)
@@ -32,9 +32,11 @@ src/main/java/com/financeapp/
 
 ## System Design
 
+### 1. Overall System Architecture
+
 ```mermaid
 graph TD
-    Client([HTTP Client]) -->|JWT Bearer / Session Cookie| SC[SecurityConfig]
+    Client([HTTP Client / Browser]) -->|Session Cookie or Bearer Token| SC[SecurityConfig]
     SC --> JAF[JwtAuthenticationFilter]
     JAF -->|Authenticated Request| C[Controllers]
     C --> S[Services]
@@ -58,19 +60,136 @@ graph TD
 
 ---
 
+### 2. Authentication & Session Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthController
+    participant AuthService
+    participant UserRepo as UserRepository
+    participant SecCtx as SecurityContext
+    participant Session as HttpSession
+
+    Client->>AuthController: POST /api/auth/register {username, password, fullName}
+    AuthController->>AuthService: register(dto)
+    AuthService->>UserRepo: save(new User, bcrypt password)
+    AuthService-->>AuthController: AuthResponseDto
+    AuthController-->>Client: 201 { message, userId }
+
+    Client->>AuthController: POST /api/auth/login {username, password}
+    AuthController->>AuthService: login(dto)
+    AuthService->>UserRepo: findByEmail(username)
+    AuthService-->>AuthController: AuthResponseDto
+    AuthController->>SecCtx: setAuthentication(userDetails)
+    AuthController->>Session: setAttribute("SPRING_SECURITY_CONTEXT", context)
+    AuthController-->>Client: 200 { message } + Set-Cookie: JSESSIONID
+
+    Note over Client,Session: Subsequent requests authenticated via session cookie
+
+    Client->>AuthController: POST /api/auth/logout
+    AuthController->>Session: invalidate()
+    AuthController->>SecCtx: clearContext()
+    AuthController-->>Client: 200 { message: "Logout successful" }
+```
+
+---
+
+### 3. Request Lifecycle & Filter Chain
+
+```mermaid
+flowchart TD
+    Req([Incoming HTTP Request]) --> CORS[CORS Filter]
+    CORS --> JAF[JwtAuthenticationFilter]
+
+    JAF --> CheckHeader{Authorization header\nstarts with Bearer?}
+    CheckHeader -->|No| CheckSession{Session has\nSPRING_SECURITY_CONTEXT?}
+    CheckHeader -->|Yes| ExtractJWT[Extract JWT token]
+
+    ExtractJWT --> ValidateJWT{Token valid &\nnot expired?}
+    ValidateJWT -->|No| CheckSession
+    ValidateJWT -->|Yes| LoadUser[Load UserDetails via CustomUserDetailsService]
+    LoadUser --> SetAuth[Set Authentication in SecurityContextHolder]
+    SetAuth --> DispatchFilter[Continue Filter Chain]
+
+    CheckSession -->|No session| DispatchFilter
+    CheckSession -->|Session found| RestoreCtx[Restore SecurityContext from session]
+    RestoreCtx --> DispatchFilter
+
+    DispatchFilter --> AuthCheck{Endpoint permitAll?}
+    AuthCheck -->|Yes| Controller[Controller]
+    AuthCheck -->|No - Authenticated| Controller
+    AuthCheck -->|No - Anonymous| Err401[401 Unauthorized JSON]
+
+    Controller --> Response([HTTP Response])
+```
+
+---
+
+### 4. Domain Entity Relationship
+
+```mermaid
+erDiagram
+    USERS {
+        bigint id PK
+        varchar email UK
+        varchar password
+        varchar full_name
+        varchar phone_number
+        timestamp created_at
+    }
+
+    TRANSACTIONS {
+        bigint id PK
+        varchar title
+        decimal amount
+        varchar type
+        varchar category
+        varchar description
+        date transaction_date
+        timestamp created_at
+        bigint user_id FK
+    }
+
+    CATEGORIES {
+        bigint id PK
+        varchar name UK
+        varchar type
+        boolean is_custom
+        bigint user_id FK
+    }
+
+    SAVINGS_GOALS {
+        bigint id PK
+        varchar goal_name
+        decimal target_amount
+        decimal current_amount
+        date deadline
+        date start_date
+        timestamp created_at
+        bigint user_id FK
+    }
+
+    USERS ||--o{ TRANSACTIONS : "owns"
+    USERS ||--o{ SAVINGS_GOALS : "owns"
+    USERS ||--o{ CATEGORIES : "creates custom"
+```
+
+---
+
 ## Technology Stack
 
-| Component         | Technology                        |
-|-------------------|-----------------------------------|
-| Language          | Java 17                           |
-| Framework         | Spring Boot 3.4.0                 |
-| Security          | Spring Security + JWT (jjwt 0.12) |
-| Database          | PostgreSQL 15 (Docker)            |
-| ORM               | Spring Data JPA / Hibernate 6     |
-| Build Tool        | Maven                             |
-| API Documentation | springdoc-openapi / Swagger UI    |
-| Testing           | JUnit 5, Mockito, MockMvc         |
-| Containerisation  | Docker, Docker Compose            |
+| Component         | Technology                                          |
+|-------------------|-----------------------------------------------------|
+| Language          | Java 17                                             |
+| Framework         | Spring Boot 3.4.0                                   |
+| Security          | Spring Security + Session (IF_REQUIRED) + JWT filter |
+| Database          | PostgreSQL 15 (Docker)                              |
+| ORM               | Spring Data JPA / Hibernate 6                       |
+| Build Tool        | Maven                                               |
+| API Documentation | springdoc-openapi / Swagger UI                      |
+| Testing           | JUnit 5, Mockito, MockMvc                           |
+| Containerisation  | Docker, Docker Compose                              |
 
 ---
 
@@ -126,7 +245,7 @@ mvn clean test
 
 ### Authentication
 
-All endpoints except `/api/auth/register` and `/api/auth/login` require a valid session cookie or `Authorization: Bearer <token>` header.
+All endpoints except `/api/auth/register` and `/api/auth/login` require a valid session cookie (`JSESSIONID`) or `Authorization: Bearer <token>` header.
 
 #### Register
 
@@ -160,7 +279,7 @@ Response (200):
 { "message": "Login successful" }
 ```
 
-Sets a session cookie and returns a JWT token.
+Sets a session cookie (`JSESSIONID`) for subsequent authenticated requests.
 
 #### Logout
 
@@ -294,11 +413,6 @@ Response (201):
 GET /api/goals
 ```
 
-Response (200):
-```json
-{ "goals": [ { "id": 1, "goalName": "Emergency Fund", "targetAmount": 5000.00, "targetDate": "2026-01-01", "startDate": "2025-01-01", "currentProgress": 1000.00, "progressPercentage": 20.00, "remainingAmount": 4000.00 } ] }
-```
-
 #### Get Goal by ID
 
 ```
@@ -331,6 +445,17 @@ Response (200):
 
 ### Reports
 
+#### Financial Summary
+
+```
+GET /api/reports/summary
+```
+
+Response (200):
+```json
+{ "totalIncome": 36000.00, "totalExpenses": 19200.00, "currentBalance": 16800.00, "monthlySpend": 1600.00, "categoryBreakdown": { "Food": 4800.00, "Rent": 14400.00 }, "goalsProgress": [...] }
+```
+
 #### Monthly Report
 
 ```
@@ -357,13 +482,13 @@ Response (200):
 
 ## Error Handling
 
-| Status Code | Scenario                                      |
-|-------------|-----------------------------------------------|
-| 400         | Validation errors, malformed input            |
-| 401         | Invalid credentials, missing authentication   |
-| 403         | Accessing another user's resource             |
-| 404         | Requested resource not found                  |
-| 409         | Duplicate email on registration, duplicate category name |
+| Status Code | Scenario                                                   |
+|-------------|------------------------------------------------------------|
+| 400         | Validation errors, malformed input                         |
+| 401         | Invalid credentials, missing authentication                |
+| 403         | Accessing another user's resource                          |
+| 404         | Requested resource not found                               |
+| 409         | Duplicate email on registration, duplicate category name   |
 
 All error responses follow this structure:
 
@@ -378,6 +503,10 @@ All error responses follow this structure:
 ### Layered Architecture
 
 The application follows a strict Controller -> Service -> Repository layered pattern. Controllers handle HTTP serialization only. All business rules and validations live in the service layer. Repositories handle only data access queries.
+
+### Session-Based Authentication with JWT Fallback
+
+The server uses `SessionCreationPolicy.IF_REQUIRED`. On login, the controller manually registers the authentication in the `SecurityContext` and persists it into the `HttpSession`. The `JwtAuthenticationFilter` runs first on every request — if a valid `Bearer` token is present it authenticates via that token; otherwise Spring restores the session context from the `JSESSIONID` cookie automatically.
 
 ### Category Isolation
 
