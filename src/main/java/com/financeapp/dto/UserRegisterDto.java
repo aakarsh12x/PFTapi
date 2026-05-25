@@ -14,8 +14,11 @@ import lombok.NoArgsConstructor;
 @Builder
 public class UserRegisterDto {
 
-    private String email;
+    @NotBlank(message = "Username/email is required")
     private String username;
+
+    // Optional - kept for API compatibility
+    private String email;
 
     @NotBlank(message = "Password is required")
     @Size(min = 6, message = "Password must be at least 6 characters long")
@@ -25,4 +28,19 @@ public class UserRegisterDto {
     private String lastName;
     private String fullName;
     private String phoneNumber;
+
+    public void setEmail(String email) {
+        this.email = email;
+        if (this.username == null || this.username.isBlank()) {
+            this.username = email;
+        }
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+        if (this.email == null || this.email.isBlank()) {
+            this.email = username;
+        }
+    }
 }
+

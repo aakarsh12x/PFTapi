@@ -76,7 +76,7 @@ public class SavingsGoalController {
     @ApiResponse(responseCode = "404", description = "Goal not found")
     public ResponseEntity<SavingsGoalResponseDto> updateGoal(
             @PathVariable Long id,
-            @Valid @RequestBody SavingsGoalRequestDto requestDto,
+            @RequestBody SavingsGoalRequestDto requestDto,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         SavingsGoalResponseDto response = savingsGoalService.updateGoal(id, requestDto, userDetails.getUsername());

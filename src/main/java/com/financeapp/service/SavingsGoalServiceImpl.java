@@ -44,6 +44,10 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
 
         LocalDate resolvedStartDate = requestDto.getStartDate() != null ? requestDto.getStartDate() : LocalDate.now();
 
+        if (!resolvedStartDate.isBefore(resolvedTargetDate)) {
+            throw new IllegalArgumentException("Start date must be before target date");
+        }
+
         SavingsGoal goal = savingsGoalMapper.toEntity(requestDto);
         goal.setUser(user);
         goal.setTargetDate(resolvedTargetDate);
@@ -92,19 +96,31 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
             goal.setGoalName(requestDto.getGoalName());
         }
         if (requestDto.getTargetAmount() != null) {
+            if (requestDto.getTargetAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Target amount must be positive");
+            }
             goal.setTargetAmount(requestDto.getTargetAmount());
         }
         
         LocalDate resolvedTargetDate = requestDto.getTargetDate() != null ? requestDto.getTargetDate() : requestDto.getDeadline();
+        LocalDate resolvedStartDate = requestDto.getStartDate();
+
         if (resolvedTargetDate != null) {
             if (!resolvedTargetDate.isAfter(LocalDate.now())) {
                 throw new IllegalArgumentException("Target date must be a future date");
             }
+            LocalDate effectiveStart = (resolvedStartDate != null) ? resolvedStartDate : goal.getStartDate();
+            if (effectiveStart != null && !effectiveStart.isBefore(resolvedTargetDate)) {
+                throw new IllegalArgumentException("Start date must be before target date");
+            }
             goal.setTargetDate(resolvedTargetDate);
         }
 
-        LocalDate resolvedStartDate = requestDto.getStartDate();
         if (resolvedStartDate != null) {
+            LocalDate effectiveTarget = (resolvedTargetDate != null) ? resolvedTargetDate : goal.getTargetDate();
+            if (effectiveTarget != null && !resolvedStartDate.isBefore(effectiveTarget)) {
+                throw new IllegalArgumentException("Start date must be before target date");
+            }
             goal.setStartDate(resolvedStartDate);
         }
 

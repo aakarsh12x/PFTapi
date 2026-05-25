@@ -58,7 +58,7 @@ public class SavingsGoalMapper {
                 .targetDate(entity.getTargetDate())
                 .startDate(entity.getStartDate())
                 .currentProgress(currentProgressVal)
-                .progressPercentage(percentage)
+                .progressPercentage(percentage.doubleValue())
                 .remainingAmount(remaining)
                 .build();
     }

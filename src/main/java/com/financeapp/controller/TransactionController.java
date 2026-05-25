@@ -52,7 +52,7 @@ public class TransactionController {
     @ApiResponse(responseCode = "404", description = "Transaction not found")
     public ResponseEntity<TransactionResponseDto> updateTransaction(
             @PathVariable Long id,
-            @Valid @RequestBody TransactionRequestDto requestDto,
+            @RequestBody TransactionRequestDto requestDto,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         TransactionResponseDto response = transactionService.updateTransaction(id, requestDto, userDetails.getUsername());
@@ -89,7 +89,7 @@ public class TransactionController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         String resolvedSortBy = sortBy;
-        if ("transactionDate".equals(sortBy)) {
+        if ("transactionDate".equals(sortBy) || "date".equals(sortBy)) {
             resolvedSortBy = "date";
         }
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(resolvedSortBy).ascending() : Sort.by(resolvedSortBy).descending();
@@ -100,13 +100,15 @@ public class TransactionController {
         
         Map<String, Object> response = new HashMap<>();
         response.put("transactions", result.getContent());
-        
-        // Retain Spring Page metadata fields for frontend compat
         response.put("content", result.getContent());
-        response.put("totalElements", result.getTotalElements());
         response.put("totalPages", result.getTotalPages());
-        response.put("size", result.getSize());
-        response.put("number", result.getNumber());
+        response.put("totalElements", result.getTotalElements());
+        response.put("last", result.isLast());
+        
+        Map<String, Object> pageableMap = new HashMap<>();
+        pageableMap.put("pageNumber", result.getNumber());
+        pageableMap.put("pageSize", result.getSize());
+        response.put("pageable", pageableMap);
         
         return ResponseEntity.ok(response);
     }

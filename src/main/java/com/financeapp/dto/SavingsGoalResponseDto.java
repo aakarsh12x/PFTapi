@@ -19,6 +19,6 @@ public class SavingsGoalResponseDto {
     private LocalDate targetDate;
     private LocalDate startDate;
     private BigDecimal currentProgress;
-    private BigDecimal progressPercentage;
+    private Double progressPercentage;
     private BigDecimal remainingAmount;
 }

@@ -135,9 +135,11 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
         String queryCategory = (category != null && !category.trim().isEmpty()) ? category.trim().toLowerCase() : null;
+        LocalDate resolvedStartDate = (startDate != null) ? startDate : LocalDate.of(1970, 1, 1);
+        LocalDate resolvedEndDate = (endDate != null) ? endDate : LocalDate.of(9999, 12, 31);
 
         Page<Transaction> transactions = transactionRepository.findFiltered(
-                user, queryCategory, type, startDate, endDate, pageable
+                user, queryCategory, type, resolvedStartDate, resolvedEndDate, pageable
         );
 
         return transactions.map(transactionMapper::toResponseDto);

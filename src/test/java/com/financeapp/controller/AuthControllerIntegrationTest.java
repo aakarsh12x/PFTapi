@@ -63,6 +63,13 @@ public class AuthControllerIntegrationTest {
                 .build();
 
         when(authService.login(any(UserLoginDto.class))).thenReturn(authResponse);
+        
+        org.springframework.security.core.userdetails.UserDetails mockUserDetails = org.springframework.security.core.userdetails.User.builder()
+                .username("test@example.com")
+                .password("password123")
+                .authorities(java.util.Collections.emptyList())
+                .build();
+        when(userDetailsService.loadUserByUsername("test@example.com")).thenReturn(mockUserDetails);
 
         mockMvc.perform(post("/api/auth/login")
                         .with(csrf())

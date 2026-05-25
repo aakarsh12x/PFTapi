@@ -20,8 +20,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("SELECT t FROM Transaction t WHERE t.user = :user AND " +
            "(:category IS NULL OR LOWER(t.category) = :category) AND " +
            "(:type IS NULL OR t.type = :type) AND " +
-           "(:startDate IS NULL OR t.date >= :startDate) AND " +
-           "(:endDate IS NULL OR t.date <= :endDate)")
+           "t.date >= :startDate AND t.date <= :endDate")
     Page<Transaction> findFiltered(
         @Param("user") User user,
         @Param("category") String category,
